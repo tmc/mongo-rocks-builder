@@ -1,0 +1,71 @@
+# paramaterized Dockerfile
+#
+# Parameters:
+# MONGO_VERSION - must be a valid mongo release version
+# MONGO_TOOLS_VERSION - must be a valid release of the mongo-tools repository
+# ROCKSDB_VERSION - must be a valid rocksdb release version
+# MONGOROCKS_VERSION - must be valid ref in the mongo-rocks repo
+# MONGOROCKS_VERSION_LABEL - label describing mongorocks release
+#
+# Optional Parameters
+# GO_VERSION "1.4.2" - must be a valid go release version 
+# JEMALLOC_VERSION "4.0.3"
+# ROCKSDB_MAKE_EXTRA_ARGS ""
+# MONGO_SCONS_EXTRA_ARGS ""
+FROM ubuntu:14.04
+
+RUN apt-get update # 2015-12-10
+RUN apt-get install -y build-essential git curl python
+
+# install newer golang
+RUN curl https://godeb.s3.amazonaws.com/godeb-amd64.tar.gz | tar xzvf -
+RUN ./godeb install {{or .GO_VERSION "1.4.2"}}
+
+# build mongo binaries
+RUN apt-get install -y scons
+
+RUN git clone -b {{.MONGO_VERSION}} --depth=1 --progress https://github.com/mongodb/mongo.git 
+
+# build mongo-tools
+RUN curl -L https://github.com/mongodb/mongo-tools/archive/{{.MONGO_TOOLS_VERSION}}.tar.gz | tar xzf - 
+WORKDIR mongo-tools-{{.MONGO_TOOLS_VERSION}}
+RUN bash ./build.sh
+RUN mv bin /mongo/src/mongo-tools
+
+# build rocksdb
+WORKDIR /
+RUN curl -L https://github.com/facebook/rocksdb/archive/rocksdb-{{.ROCKSDB_VERSION}}.tar.gz | tar xzf -
+RUN cd rocksdb-rocksdb-{{.ROCKSDB_VERSION}} && \
+  make -j$(nproc) release {{or .ROCKSDB_EXTRA_MAKE_ARGS ""}} && make install
+
+# link in mongo-rocks
+WORKDIR /mongo
+RUN git clone --depth=1 --progress https://github.com/mongodb-partners/mongo-rocks.git
+RUN cd mongo-rocks && git checkout {{.MONGOROCKS_VERSION}} 
+RUN mkdir -p /mongo/src/mongo/db/modules
+RUN ln -sf /mongo/mongo-rocks /mongo/src/mongo/db/modules/rocksdb
+
+# fetch and build jemalloc
+RUN curl -L https://github.com/jemalloc/jemalloc/releases/download/{{or .JEMALLOC_VERSION "4.0.3" }}/jemalloc-{{or .JEMALLOC_VERSION "4.0.3" }}.tar.bz2 | tar -xjf -
+WORKDIR jemalloc-{{or .JEMALLOC_VERSION "4.0.3" }}
+RUN mkdir /jemalloc
+RUN ./configure && make -j$(nproc) && make install
+
+# build mongo
+RUN apt-get install -y libbz2-dev zlib1g-dev
+WORKDIR /mongo
+RUN scons \
+  LINKFLAGS="-Wl,--whole-archive /usr/local/lib/libjemalloc.a -Wl,--no-whole-archive" \
+  MONGO_DISTNAME="{{.MONGO_VERSION}}_mongorocks-{{.MONGOROCKS_VERSION_LABEL}}" \
+  CPPPATH=/usr/local/include \
+  LIBPATH=/usr/local/lib \
+  -j$(nproc) \
+  --release \
+  --use-new-tools \
+  --nostrip \
+  --allocator=system \
+  {{or .MONGO_SCONS_EXTRA_ARGS ""}} \
+  dist
+
+RUN mkdir /artifacts && \
+    mv mongodb-*tgz /artifacts

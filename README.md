@@ -1,4 +1,4 @@
-mongo-rocks-deb
+mongo-rocks-builder
 ===============
 
-build debian packages of mongodb with rocksdb storage
+build tarballs and debian packages of mongo-rocks -- mongodb with rocksdb storage
