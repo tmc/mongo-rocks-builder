@@ -56,7 +56,7 @@ RUN apt-get install -y libbz2-dev zlib1g-dev
 WORKDIR /mongo
 RUN scons \
   LINKFLAGS="-Wl,--whole-archive /usr/local/lib/libjemalloc.a -Wl,--no-whole-archive" \
-  MONGO_DISTNAME="{{.MONGO_VERSION}}_mongorocks-{{.MONGOROCKS_VERSION_LABEL}}" \
+  MONGO_DISTNAME="{{.ROCKSDB_VERSION}}-mongo-{{.MONGO_VERSION}}-mongorocks-{{.MONGOROCKS_VERSION_LABEL}}" \
   CPPPATH=/usr/local/include \
   LIBPATH=/usr/local/lib \
   -j$(nproc) \
