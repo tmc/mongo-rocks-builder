@@ -52,7 +52,7 @@ RUN mkdir /jemalloc
 RUN ./configure && make -j$(nproc) && make install
 
 # build mongo
-RUN apt-get install -y libbz2-dev zlib1g-dev
+RUN apt-get install -y libbz2-dev zlib1g-dev libsnappy-dev
 WORKDIR /mongo
 RUN scons \
   LINKFLAGS="-Wl,--whole-archive /usr/local/lib/libjemalloc.a -Wl,--no-whole-archive" \
